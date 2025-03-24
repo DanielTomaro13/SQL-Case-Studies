@@ -1,0 +1,94 @@
+Task 3
+Given two months x and y, where y > x, find the hashtag name that has
+increased the number of tweets the most from month x to month y. Ignore the tweets
+in the months between x and y, so just compare the number of tweets at month x and
+at month y. Report the hashtag name, the number of tweets in months x and y. Ignore
+any hashtag names that had no tweets in either month x or y. You can assume that
+the combination of hashtag and month is unique. Therefore, the same hashtag and
+month combination cannot occur more than once.
+
+import org.apache.spark.sql._
+import org.apache.spark.sql.types._
+import org.apache.spark.SparkContext
+
+object Main {
+  def solution(sc: SparkContext, x: String, y: String) {
+    
+    val twitterLines = sc.textFile("/twitter.tsv")
+    val twitterdata = twitterLines.map(_.split("\t"))
+    
+    val result = twitterdata
+      .filter(row => row(1) == x || row(1) == y)
+      .map(row => (row(3), (row(1), row(2).toInt)))
+      .groupByKey()
+      .mapValues(_.toMap)
+      .filter(v => v._2.contains(x) && v._2.contains(y))
+      .map { case (hashtag, counts) =>
+        val countX = counts(x)
+        val countY = counts(y)
+        val increase = countY - countX
+        (hashtag, countX, countY, increase)
+      }
+      .filter(_._4 > 0)
+      .reduce((a, b) => if (a._4 > b._4) a else b)
+
+    println(s"hashtagName: ${result._1}, countX: ${result._2}, countY: ${result._3}")
+  }
+
+  def main(args: Array[String]) {
+    import org.apache.log4j.{Logger,Level}
+    Logger.getLogger("org").setLevel(Level.WARN)
+    Logger.getLogger("akka").setLevel(Level.WARN)
+    if(args.length != 2) {
+      println("Expected two command line arguments: <month x> and <month y>")
+      sys.exit(1)
+    }
+    val spark = SparkSession.builder
+      .appName("Task2c")
+      .master("local[4]")
+      .config("spark.hadoop.validateOutputSpecs", "false")
+      .config("spark.default.parallelism", 1)
+      .getOrCreate()
+    solution(spark.sparkContext, args(0), args(1))
+    spark.stop()
+  }
+}
+
+In SQL I would do the following:
+
+WITH filtered AS (
+  SELECT hashtag_name, month, tweet_count
+  FROM twitter
+  WHERE month = 'x' OR month = 'y'
+),
+
+pivoted AS (
+  SELECT
+    hashtag_name,
+    MAX(CASE WHEN month = 'x' THEN tweet_count END) AS count_x,
+    MAX(CASE WHEN month = 'y' THEN tweet_count END) AS count_y
+  FROM filtered
+  GROUP BY hashtag_name
+),
+
+with_increase AS (
+  SELECT
+    hashtag_name,
+    count_x,
+    count_y,
+    (count_y - count_x) AS increase
+  FROM pivoted
+  WHERE count_x IS NOT NULL AND count_y IS NOT NULL
+    AND (count_y - count_x) > 0
+)
+
+SELECT
+  hashtag_name,
+  count_x,
+  count_y
+FROM with_increase
+ORDER BY increase DESC
+LIMIT 1;
+
+
+-- Replace X and Y with the desired months 
