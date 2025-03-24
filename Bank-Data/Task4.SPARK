@@ -1,0 +1,88 @@
+Task 4. Output the following details for each person whose job category has an
+average balance above 500: education, balance, job, marital, loan. Make sure the
+output is in decreasing order of individual balance
+
+import org.apache.spark.sql._
+import org.apache.spark.sql.types._
+import org.apache.spark.SparkContext
+
+object Main {
+  def solution(sc: SparkContext) {
+    
+    val bankdataLines = sc.textFile("Assignment_Data/bank.csv")
+    
+    // Split each line of the input data into an array of strings
+    val bankdata = bankdataLines.map(_.split(";"))
+
+
+    // Assuming the indices for the required fields are:
+    // education: 3, balance: 5, job: 1, marital: 2, loan: 7
+    val relevantData = bankdata.map(fields => 
+      (fields(1), (fields(3), fields(5).toDouble, fields(1), fields(2), fields(7)))
+    )
+
+    // Calculate average balance for each job category
+    val jobAverageBalance = relevantData
+      .mapValues(data => (data._2, 1))
+      .reduceByKey((a, b) => (a._1 + b._1, a._2 + b._2))
+      .mapValues(sum => sum._1 / sum._2)
+
+    // Filter job categories with average balance above 500
+    val highBalanceJobs = jobAverageBalance.filter(_._2 > 500).keys.collect().toSet
+
+    // Filter and sort the data
+    val result = relevantData
+      .filter(data => highBalanceJobs.contains(data._1))
+      .values
+      .sortBy(-_._2)
+
+    // Save the result to a single text file
+    result
+      .map(data => s"${data._1}, ${data._2}, ${data._3}, ${data._4}, ${data._5}")
+      .coalesce(1)
+      .saveAsTextFile("Task_1d-out")
+  }
+
+  // Do not edit the main function
+  def main(args: Array[String]) {
+    // Set log level
+    import org.apache.log4j.{Logger,Level}
+    Logger.getLogger("org").setLevel(Level.WARN)
+    Logger.getLogger("akka").setLevel(Level.WARN)
+    // Initialise Spark
+    val spark = SparkSession.builder
+      .appName("Task1d")
+      .master("local[4]")
+      .config("spark.hadoop.validateOutputSpecs", "false")
+      .getOrCreate()
+    // Run solution code
+    solution(spark.sparkContext)
+    // Stop Spark
+    spark.stop()
+  }
+}
+
+If I were to do this in SQL
+
+WITH avg_per_job AS (
+  SELECT
+    job,
+    AVG(balance) AS avg_balance
+  FROM
+    bankdata
+  GROUP BY
+    job
+  HAVING AVG(balance) > 500
+)
+SELECT
+  education,
+  balance,
+  job,
+  marital,
+  loan
+FROM
+  bankdata
+WHERE
+  job IN (SELECT job FROM avg_per_job)
+ORDER BY
+  balance DESC
