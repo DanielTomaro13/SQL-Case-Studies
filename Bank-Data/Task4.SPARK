@@ -9,7 +9,7 @@ import org.apache.spark.SparkContext
 object Main {
   def solution(sc: SparkContext) {
     
-    val bankdataLines = sc.textFile("Assignment_Data/bank.csv")
+    val bankdataLines = sc.textFile("/bank.csv")
     
     // Split each line of the input data into an array of strings
     val bankdata = bankdataLines.map(_.split(";"))
