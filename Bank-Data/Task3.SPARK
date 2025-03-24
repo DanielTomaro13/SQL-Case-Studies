@@ -1,0 +1,75 @@
+Task 3 Group balance into the following three categories:
+a. Low: -infinity to 500
+b. Medium: 501 to 1500 =>
+c. High: 1501 to +infinity
+Report the number of people in each of the above categories.
+
+import org.apache.spark.sql._
+import org.apache.spark.sql.types._
+import org.apache.spark.SparkContext
+
+object Main {
+  def solution(sc: SparkContext) {
+    
+    val bankdataLines = sc.textFile("Assignment_Data/bank-small.csv")
+    
+    // Split each line of the input data into an array of strings
+    val bankdata = bankdataLines.map(_.split(";"))
+
+    // Extract balance (6th column, index 5) and categorize it
+    val categorizedBalances = bankdata.map(row => {
+      val balance = row(5).toInt
+      if (balance <= 500) "Low"
+      else if (balance <= 1500) "Medium"
+      else "High"
+    })
+    
+    // Count the occurrences of each category
+    val categoryCounts = categorizedBalances.countByValue()
+    
+    // Convert the results to a format suitable for writing to a file
+    val results = categoryCounts.map { case (category, count) => s"$category,$count" }
+    
+    // Write the results to a text file
+    sc.parallelize(results.toSeq).saveAsTextFile("Task_1c-out")
+  }
+
+  }
+
+  // Do not edit the main function
+  def main(args: Array[String]) {
+    // Set log level
+    import org.apache.log4j.{Logger,Level}
+    Logger.getLogger("org").setLevel(Level.WARN)
+    Logger.getLogger("akka").setLevel(Level.WARN)
+    // Initialise Spark
+    val spark = SparkSession.builder
+      .appName("Task1c")
+      .master("local[4]")
+      .config("spark.hadoop.validateOutputSpecs", "false")
+      .config("spark.default.parallelism", 1)
+      .getOrCreate()
+    // Run solution code
+    solution(spark.sparkContext)
+    // Stop Spark
+    spark.stop()
+  }
+}
+
+
+If I were to do this in SQL
+
+SELECT
+  CASE 
+    WHEN balance > 1500 THEN 'High'
+    WHEN balance > 500 THEN 'Medium'
+    ELSE 'Low'
+  END AS income_category,
+  COUNT(*) AS count
+FROM bankdata
+GROUP BY income_category
+
+
+
+
+
