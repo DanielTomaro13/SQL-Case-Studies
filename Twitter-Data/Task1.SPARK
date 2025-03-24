@@ -41,3 +41,15 @@ object Main {
     spark.stop()
   }
 }
+
+In SQL you would do the following:
+
+SELECT
+    month,
+    count,
+    hastag_name
+FROM 
+    bankdata
+ORDER BY
+    count DESC
+LIMIT 1
